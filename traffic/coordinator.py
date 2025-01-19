@@ -1,7 +1,7 @@
 # Coordination and management of traffic
 
 def coordinator(normal_queue, priority_queue, lights, shared_memory):
-    """Coordinate vehicle movement and manage light states."""
+    #Coordinate vehicle movement and manage light states.
     while True:
         # Process priority vehicles first
         if not priority_queue.empty():

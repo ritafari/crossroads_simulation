@@ -1,5 +1,6 @@
 # Functions and processes for priority traffic generation
 
+
 def priority_traffic_gen(queue, signal, interval):
     """Generate priority vehicles and notify signal handler."""
     while True:
