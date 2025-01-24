@@ -45,45 +45,37 @@ def coordinator(queues, lights, shared_memory):
         # Avoid CPU overuse
         time.sleep(0.1)
 """
-
-
 def coordinator_server(queues, lights, shared_memory, host="127.0.0.1", port=65432):
     """
     Coordinator server sends real-time updates about traffic light states
     and vehicle movements to the display process.
     """
-    # Create a TCP socket
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind((host, port))
-    server_socket.listen(1)  # Listen for one client (the display process)
-    print(f"Coordinator server listening on {host}:{port}")
+    try:
+        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server_socket.bind((host, port))
+        server_socket.listen(1)  # Listen for one client
+        print(f"Coordinator server listening on {host}:{port}")
 
-    # Accept a connection from the display process
-    conn, addr = server_socket.accept()
-    print(f"Display process connected from {addr}")
+        conn, addr = server_socket.accept()
+        print(f"Display process connected from {addr}")
 
-    while True:
-        try:
-            # Prepare data to send (lights state and vehicles in queues)
-            lights_state = shared_memory.get_state("lights")  # Example light state
+        while True:
+            # Update light states and queue lengths
+            lights_state = shared_memory.get_state("lights") or {
+                "S": "GREEN", "N": "RED", "W": "RED", "E": "RED"
+            }
             queue_lengths = {direction: queues[direction].qsize() for direction in queues}
 
-            # Create an update message
+            # Package data into an update message
             update_message = {
                 "lights_state": lights_state,
                 "queue_lengths": queue_lengths,
             }
 
-            # Send the update as a JSON string
+            # Send the update message to the display
             conn.sendall(json.dumps(update_message).encode("utf-8"))
-
-            # Wait a bit before the next update
             time.sleep(1)
-        except (ConnectionResetError, BrokenPipeError):
-            print("Display process disconnected. Stopping server.")
-            break
-
-    # Clean up
-    conn.close()
-    server_socket.close()
-
+    except Exception as e:
+        print(f"Error in coordinator_server: {e}")
+    finally:
+        server_socket.close()
