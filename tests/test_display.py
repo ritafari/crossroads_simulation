@@ -9,8 +9,8 @@ from threading import Thread
 from queue import Queue
 
 # Import the display and client functions to test
-from display import display, display_client
-from shared_memory import SharedMemory
+from traffic.display import display_client
+from utils.shared_memory import SharedMemory
 
 class TestDisplay(unittest.TestCase):
     def setUp(self):
@@ -33,7 +33,7 @@ class TestDisplay(unittest.TestCase):
         Test the 'display' function to ensure it renders shared memory state.
         """
         # Run the display function in a separate thread
-        display_thread = Thread(target=display, args=(self.shared_memory,))
+        display_thread = Thread(target=display_client, args=(self.shared_memory,))
         display_thread.daemon = True
         display_thread.start()
 

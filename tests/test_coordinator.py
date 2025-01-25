@@ -8,9 +8,9 @@ import socket
 import json
 import time
 
-from ..coordinator import coordinator, coordinator_server
-from ..shared_memory import SharedMemory
-from ..lights import Lights
+from traffic.coordinator import coordinator_server
+from utils.shared_memory import SharedMemory
+from traffic.lights import Lights
 
 class TestCoordinator(unittest.TestCase):
     def setUp(self):
@@ -44,7 +44,7 @@ class TestCoordinator(unittest.TestCase):
         # Mock proceed to capture its calls
         with patch("coordinator.proceed", autospec=True) as mock_proceed:
             # Run coordinator in a thread to avoid blocking
-            coordinator_thread = Thread(target=coordinator, args=(self.queues, self.lights, self.shared_memory))
+            coordinator_thread = Thread(target=coordinator_server, args=(self.queues, self.lights, self.shared_memory))
             coordinator_thread.daemon = True
             coordinator_thread.start()
 
@@ -59,7 +59,7 @@ class TestCoordinator(unittest.TestCase):
         self.lights.override_for_priority = MagicMock()
         with patch("coordinator.proceed", autospec=True) as mock_proceed:
             # Run coordinator in a thread
-            coordinator_thread = Thread(target=coordinator, args=(self.queues, self.lights, self.shared_memory))
+            coordinator_thread = Thread(target=coordinator_server, args=(self.queues, self.lights, self.shared_memory))
             coordinator_thread.daemon = True
             coordinator_thread.start()
 

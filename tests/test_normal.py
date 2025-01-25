@@ -1,9 +1,11 @@
 # Unit tests for normal traffic generation
 
+
 import unittest
 from unittest.mock import patch
 from queue import Queue
-from normal_traffic import create_vehicle, normal_traffic_gen
+from threading import Thread
+from traffic.normal_traffic import create_vehicle, normal_traffic_gen
 import time
 
 class TestNormalTrafficGen(unittest.TestCase):

@@ -3,8 +3,8 @@
 import unittest
 from unittest.mock import MagicMock
 from time import time
-from lights import Lights
-from shared_memory import SharedMemory
+from traffic.lights import Lights
+from utils.shared_memory import SharedMemory
 
 class TestLights(unittest.TestCase):
     def setUp(self):

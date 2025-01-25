@@ -5,6 +5,7 @@ import threading
 import time
 import random
 import uuid
+from traffic.priority_traffic import priority_traffic_gen
 
 # Test signal handler
 class SignalHandler:
