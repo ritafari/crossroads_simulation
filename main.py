@@ -7,7 +7,8 @@ from traffic.normal_traffic import normal_traffic_gen
 from traffic.priority_traffic import priority_traffic_gen
 from traffic.coordinator import coordinator_server
 from traffic.lights import Lights
-from traffic.display import display_client 
+from traffic.display import CrossroadsDisplay
+
 
 """"
 def coordinator_server(queues, lights, shared_memory):
@@ -74,7 +75,7 @@ def main():
 
         # Start the display client in a thread
         print("Starting display client...")
-        display_thread = threading.Thread(target=display_client)  # No args required
+        display_thread = threading.Thread(target=CrossroadsDisplay)  # No args required
         display_thread.start()
 
         # Start normal and priority traffic generators
