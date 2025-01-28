@@ -5,9 +5,14 @@ from traffic.normal_traffic import normal_traffic_gen
 from traffic.priority_traffic import priority_traffic_gen
 from traffic.coordinator import coordinator_server
 from traffic.lights import Lights
+<<<<<<< HEAD
 from traffic.display import display_client
 import time
 import logging
+=======
+from traffic.display import CrossroadsDisplay
+
+>>>>>>> 0ec41fb0b287ebceffdb7febe182c8442d0c5c31
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
@@ -44,6 +49,7 @@ def main():
             process.start()
             logging.info(f"Started process: {process.name}")
 
+<<<<<<< HEAD
         # Monitor processes for any unexpected terminations
         while not shutdown_event.is_set():
             for process in processes:
@@ -52,6 +58,12 @@ def main():
                     shutdown_event.set()
                     break
             time.sleep(1)
+=======
+        # Start the display client in a thread
+        print("Starting display client...")
+        display_thread = threading.Thread(target=CrossroadsDisplay)  # No args required
+        display_thread.start()
+>>>>>>> 0ec41fb0b287ebceffdb7febe182c8442d0c5c31
 
     except Exception as e:
         logging.error(f"Error in main: {e}")

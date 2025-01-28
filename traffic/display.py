@@ -30,4 +30,3 @@ def display_client(host="127.0.0.1", port=65432):
         logging.error(f"Error in display_client: {e}")
     finally:
         client_socket.close()
-
