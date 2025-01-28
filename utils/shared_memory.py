@@ -2,29 +2,19 @@
 
 from multiprocessing import Manager
 
-"""
-class SharedMemory:
-    def __init__(self):
-        self.manager = Manager()
-        self.state = self.manager.dict({"lights": {}, "vehicles": {}})
-
-    def update_state(self, key, value):
-        self.state[key] = value
-
-    def get_light_state(self, road):
-        return self.state["lights"].get(road, False)
-"""
-
 class SharedMemory:
     def __init__(self):
         self.manager = Manager()
         self.state = self.manager.dict({
-            "lights": {"S-N": "GREEN", "W-E": "RED"}  # Default lights state
+            "lights": {"S": "GREEN", "N": "RED", "W": "RED", "E": "RED"}  # Default light states
         })
 
     def update_state(self, key, value):
+        """Update the state in shared memory."""
         self.state[key] = value
 
     def get_state(self, key):
+        """Retrieve a state from shared memory."""
         return self.state.get(key, None)
+
 

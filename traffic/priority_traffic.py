@@ -1,22 +1,27 @@
 # Functions and processes for priority traffic generation
 
+from multiprocessing import Process, Queue
 import time
 import random
-import uuid  # For generating unique vehicle IDs
+import uuid
+import logging
+from utils.signals import SignalHandler
 
-# List of possible directions
+# Setup logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
+
 DIRECTIONS = ["S", "N", "W", "E"]
 
 def create_vehicle(vehicle_type):
     """Creates a vehicle with randomized attributes."""
     source = random.choice(DIRECTIONS)
-    destination = random.choice([d for d in DIRECTIONS if d != source])  # Ensure destination is different from source
+    destination = random.choice([d for d in DIRECTIONS if d != source])
     return {
-        "id": str(uuid.uuid4()),  # Unique identifier for the vehicle
+        "id": str(uuid.uuid4()),
         "type": vehicle_type,
         "source": source,
         "destination": destination,
-        "timestamp": time.time(),  # Optional: timestamp for when the vehicle is generated
+        "timestamp": time.time(),
     }
 
 def priority_traffic_gen(queues, signal_handler, interval):
@@ -25,15 +30,18 @@ def priority_traffic_gen(queues, signal_handler, interval):
     Sends a signal to the system to notify about the priority vehicle.
     """
     while True:
-        # Create a priority vehicle
         vehicle = create_vehicle("priority")
-        # Add the vehicle to the queue corresponding to its source direction
         queues[vehicle["source"]].put(vehicle)
-        # Notify the signal handler about the priority vehicle
         signal_handler.notify_priority(vehicle)
-        print(f"Generated PRIORITY vehicle {vehicle['id']} from {vehicle['source']} to {vehicle['destination']}")
-        # Wait for the specified interval
+        logging.info(f"Generated PRIORITY vehicle {vehicle['id']} from {vehicle['source']} to {vehicle['destination']}")
         time.sleep(interval)
+
+if __name__ == "__main__":
+    queues = {direction: Queue() for direction in DIRECTIONS}
+    signal_handler = SignalHandler()
+    process = Process(target=priority_traffic_gen, args=(queues, signal_handler, 5))
+    process.start()
+    process.join()
 
 
 """

@@ -1,9 +1,12 @@
 # Functions and processes for normal traffic generation
-
-
+from multiprocessing import Process, Queue
 import time
 import random
-import uuid  # For generating unique vehicle IDs
+import uuid
+import logging
+
+# Setup logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 
 # List of possible directions
 DIRECTIONS = ["S", "N", "W", "E"]
@@ -17,7 +20,7 @@ def create_vehicle(vehicle_type):
         "type": vehicle_type,
         "source": source,
         "destination": destination,
-        "timestamp": time.time(),  # Optional: timestamp for when the vehicle is generated
+        "timestamp": time.time(),  # Timestamp for when the vehicle is generated
     }
 
 def normal_traffic_gen(queues, interval):
@@ -28,11 +31,17 @@ def normal_traffic_gen(queues, interval):
     while True:
         # Create a normal vehicle
         vehicle = create_vehicle("normal")
-        # Add the vehicle to the queue corresponding to its source direction
         queues[vehicle["source"]].put(vehicle)
-        print(f"Generated vehicle {vehicle['id']} from {vehicle['source']} to {vehicle['destination']}")
-        # Wait for the specified interval
+        logging.info(f"Generated vehicle {vehicle['id']} from {vehicle['source']} to {vehicle['destination']}")
         time.sleep(interval)
+
+if __name__ == "__main__":
+    queues = {direction: Queue() for direction in DIRECTIONS}
+    process = Process(target=normal_traffic_gen, args=(queues, 2))
+    process.start()
+    process.join()
+
+
 
 
 """
