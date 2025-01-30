@@ -1,20 +1,35 @@
 # Helper functions for message queue management
 
-from multiprocessing import Queue
+import logging
+from multiprocessing import Manager
 from queue import Empty, Full
 
-def create_queue():
-    return Queue()
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("message_queues")
 
-def enqueue(queue, item):
-    try:
-        queue.put(item, timeout=1)  # Add timeout to prevent deadlocks
-    except Full:
-        print("Queue is full. Unable to enqueue item.")
+def create_queues(manager):
+    """Create queues using a Manager instance"""
+    return manager.dict({
+        "N": manager.Queue(),
+        "S": manager.Queue(),
+        "E": manager.Queue(),
+        "W": manager.Queue()
+    })
 
-def dequeue(queue):
+def enqueue(queues, vehicle, direction):
     try:
-        return queue.get(timeout=1)  # Add timeout to prevent indefinite blocking
+        queues[direction].put(vehicle)
+        logger.info(f"Enqueued {vehicle['id'][:8]} to {direction}")
+    except Exception as e:
+        logger.error(f"Queue error: {str(e)}")
+
+def dequeue(queue, direction):
+    """Remove and return a vehicle from the specified direction queue."""
+    try:
+        item = queue[direction].get(timeout=1)
+        logger.info(f"Dequeued vehicle {item['id']} from {direction} queue")
+        return item
     except Empty:
-        print("Queue is empty. Unable to dequeue item.")
+        logger.debug(f"Queue {direction} is empty")
         return None

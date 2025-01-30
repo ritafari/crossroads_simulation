@@ -1,35 +1,39 @@
-from multiprocessing import Value, Manager
+# signals.py
+import os
+import signal
+import logging
+from multiprocessing import Manager, Value
 from ctypes import c_bool
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("signals")
+
 class SignalHandler:
-    def __init__(self):
-        # Shared state for priority signal (multiprocessing-safe)
-        self.priority_signal = Value(c_bool, False)  # Boolean value shared between processes
+    def __init__(self, lights_pid):
+        self.lights_pid = lights_pid
         manager = Manager()
-        self.priority_source = manager.Value('u', "")  # Shared string value for priority source
+        self.priority_direction = manager.Value('c', ' ')  # Store N/S/E/W
+        self.signal_received = Value(c_bool, False)
 
     def notify_priority(self, vehicle):
-        """Notify the system about a priority vehicle."""
-        if "source" in vehicle:
-            with self.priority_signal.get_lock():  # Lock to safely update the shared value
-                self.priority_signal.value = True
-                self.priority_source.value = vehicle["source"]
-        else:
-            print("Invalid vehicle data: 'source' key is missing.")
+        """Send OS signal with specific direction"""
+        try:
+            source = vehicle['source'].upper()
+            if source not in ['N', 'S', 'E', 'W']:
+                raise ValueError("Invalid source direction")
+            
+            self.priority_direction.value = source
+            self.signal_received.value = True
+            os.kill(self.lights_pid, signal.SIGUSR1)
+            logger.info(f"Priority signal sent for direction {source}")
+            
+        except KeyError as e:
+            logger.error(f"Missing vehicle property: {str(e)}")
+        except ValueError as e:
+            logger.error(f"Invalid direction: {str(e)}")
 
-    def has_priority_signal(self):
-        """Check if a priority signal is active."""
-        with self.priority_signal.get_lock():
-            return self.priority_signal.value
+    def get_priority_direction(self):
+        return self.priority_direction.value
 
-    def get_priority_source(self):
-        """Retrieve the source of the priority signal."""
-        return self.priority_source.value
-
-    def reset_priority_signal(self):
-        """Reset the priority signal."""
-        with self.priority_signal.get_lock():  # Lock to safely reset the shared values
-            self.priority_signal.value = False
-            self.priority_source.value = ""
-
-
+    def acknowledge_signal(self):
+        self.signal_received.value = False
