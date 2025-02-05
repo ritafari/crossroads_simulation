@@ -1,87 +1,80 @@
-# display.py
 import socket
 import json
 import time
-import logging
-from enum import Enum
-from colorama import Fore, Style, init
+import sys
 
-# Initialize colorama
-init(autoreset=True)
+HOST = '127.0.0.1'
+PORT = 65432
 
-# Setup logging
-logging.basicConfig(level=logging.INFO, format="%(name)s - %(message)s")
-logger = logging.getLogger("display")
+def print_state(state):
+    lights = state.get("lights", {})
+    queues = state.get("queues", {})
+    current_vehicle = state.get("current_vehicle", None)
+    event_logs = state.get("event_logs", [])
+    
+    report = []
+    report.append("==== Current Simulation State ====")
+    report.append(f"Traffic Lights: N={lights.get('N', '?')}, S={lights.get('S', '?')}, E={lights.get('E', '?')}, W={lights.get('W', '?')}")
+    report.append(f"Vehicle Queues: N={queues.get('N', 0)}, S={queues.get('S', 0)}, E={queues.get('E', 0)}, W={queues.get('W', 0)}")
+    
+    if current_vehicle:
+        report.append("Current Vehicle:")
+        report.append(f"  ID: {current_vehicle.get('id','')[:8]}")
+        report.append(f"  Type: {current_vehicle.get('type','')}")
+        report.append(f"  From: {current_vehicle.get('source','')} -> To: {current_vehicle.get('destination','')}")
+        report.append(f"  Turn: {current_vehicle.get('turn','')}, Priority: {current_vehicle.get('priority', False)}")
+    else:
+        report.append("No current vehicle processing.")
+    
+    report.append("Recent Events:")
+    if event_logs:
+        for ev in event_logs:
+            report.append(f"  {ev.get('msg','')}")
+    else:
+        report.append("  No recent events.")
+    report.append("=" * 40)
+    
+    # Clear the console
+    sys.stdout.write("\033[H\033[J")
+    sys.stdout.flush()
+    print("\n".join(report))
 
-class LightColor(Enum):
-    GREEN = Fore.GREEN + "🟢" + Style.RESET_ALL
-    RED = Fore.RED + "🔴" + Style.RESET_ALL
-
-class TrafficDisplay:
-    def __init__(self, shutdown_flag, host="127.0.0.1", port=65432):
-        self.host = host
-        self.port = port
-        self.running = True
-        self.reconnect_delay = 1
-        self.shutdown_flag = shutdown_flag
-
-    def clear_screen(self):
-        """Clear terminal using ANSI escape codes"""
-        print("\033[H\033[J", end="")
-
-    def draw_intersection(self, data):
-        """Render the crossroads visualization"""
-        lights = data.get("lights", {})
-        queues = data.get("queues", {})
-        current_vehicle = data.get("current_vehicle", {})
-
-        # Build the intersection grid
-        grid = [
-            "                    NORTH                    ",
-            f"  {LightColor[lights.get('N', 'RED')].value}  [N: {queues.get('N', 0):02d}]       ⬆        [S: {queues.get('S', 0):02d}]  {LightColor[lights.get('S', 'RED')].value}  ",
-            "                    ⬆⬇                    ",
-            "WEST ⬅ ⬅ ⬅ ⬅ ⬅ ⬅ ✖ ➡ ➡ ➡ ➡ ➡ ➡ EAST",
-            "                    ⬇⬆                    ",
-            f"  {LightColor[lights.get('W', 'RED')].value}  [W: {queues.get('W', 0):02d}]       ⬇        [E: {queues.get('E', 0):02d}]  {LightColor[lights.get('E', 'RED')].value}  ",
-            "                    SOUTH                    "
-        ]
-
-        # Add current vehicle info
-        if current_vehicle:
-            vehicle_info = [
-                "",
-                " CURRENT VEHICLE:",
-                f" ID: {current_vehicle.get('id', '')[0:8]}",
-                f" Type: {current_vehicle.get('type', 'unknown')}",
-                f" From: {current_vehicle.get('source', '?')} → To: {current_vehicle.get('destination', '?')}",
-                f" Priority: {'🚨 ' if current_vehicle.get('priority', False) else ''}{current_vehicle.get('priority', False)}",
-                f" Turn: {current_vehicle.get('turn', 'none')}"
-            ]
-            grid += vehicle_info
-
-        self.clear_screen()
-        print("\n".join(grid))
-
-    def run(self):
-        buffer = b""
-        while not self.shutdown_flag.is_set():
+def main():
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        sock.connect((HOST, PORT))
+        sock.settimeout(1)
+        print(f"Connected to display server at {HOST}:{PORT}")
+    except Exception as e:
+        print(f"Error connecting to display server: {e}")
+        return
+    
+    buffer = b""
+    while True:
+        try:
+            data = sock.recv(4096)
+            if data:
+                buffer += data
+        except socket.timeout:
+            pass
+        except KeyboardInterrupt:
+            print("Keyboard interrupt received. Exiting display.")
+            break
+        
+        while b'\n' in buffer:
+            msg, buffer = buffer.split(b'\n', 1)
+            if not msg.strip():
+                continue
             try:
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.connect((self.host, self.port))
-                    while not self.shutdown_flag.is_set():
-                        data = s.recv(4096)
-                        if not data: break
-                        
-                        buffer += data
-                        while b'\n' in buffer:
-                            msg, buffer = buffer.split(b'\n', 1)
-                            try:
-                                self.draw_intersection(json.loads(msg.decode()))
-                            except json.JSONDecodeError:
-                                continue
-            except Exception:
-                time.sleep(1)
+                state = json.loads(msg.decode())
+                print_state(state)
+            except Exception as e:
+                print(f"Error decoding JSON: {e}")
+        time.sleep(1)
+    sock.close()
 
 if __name__ == "__main__":
-    display = TrafficDisplay()
-    display.run()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("Display interrupted. Exiting.")

@@ -1,15 +1,12 @@
-# Helper functions for message queue management
-
 import logging
-from multiprocessing import Manager
-from queue import Empty, Full
+from multiprocessing.managers import SyncManager
+from multiprocessing import Queue
+from typing import Dict
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("message_queues")
 
-def create_queues(manager):
-    """Create queues using a Manager instance"""
+def create_queues(manager: SyncManager) -> Dict[str, Queue]:
     return manager.dict({
         "N": manager.Queue(),
         "S": manager.Queue(),
@@ -17,19 +14,9 @@ def create_queues(manager):
         "W": manager.Queue()
     })
 
-def enqueue(queues, vehicle, direction):
+def enqueue(queues: Dict[str, Queue], vehicle: dict, direction: str) -> None:
     try:
         queues[direction].put(vehicle)
         logger.info(f"Enqueued {vehicle['id'][:8]} to {direction}")
     except Exception as e:
         logger.error(f"Queue error: {str(e)}")
-
-def dequeue(queue, direction):
-    """Remove and return a vehicle from the specified direction queue."""
-    try:
-        item = queue[direction].get(timeout=1)
-        logger.info(f"Dequeued vehicle {item['id']} from {direction} queue")
-        return item
-    except Empty:
-        logger.debug(f"Queue {direction} is empty")
-        return None
