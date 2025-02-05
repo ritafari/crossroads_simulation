@@ -4,7 +4,7 @@ import socket
 import threading
 import logging
 from queue import Empty
-
+from multiprocessing import Event, Manager
 from utils.shared_memory import SharedMemory
 
 logging.basicConfig(level=logging.INFO, format="%(name)s - %(message)s")
@@ -28,7 +28,7 @@ class Coordinator:
                          f"({'EMERGENCY' if vehicle.get('priority') else 'normal'}) "
                          f"from {vehicle['source']} to {vehicle['destination']} {action}.")
             self.shared_memory.append_event_log(event_msg)
-            logger.info(event_msg)
+            logger.info(event_msg)  # Log when a vehicle is processed
         # supposed to hold the vehicle in shared memory so the display can show it but does not really help
         time.sleep(4)
         with self.intersection_lock:
@@ -41,6 +41,7 @@ class Coordinator:
                 try:
                     vehicle = self.queues[direction].get_nowait()
                     light_state = self.shared_memory.get_light_state()
+                    logger.info(f"Processing vehicle: {vehicle}")  # Log when a vehicle is retrieved
                     if vehicle.get("priority", False):
                         logger.warning(f"🚑 EMERGENCY VEHICLE {vehicle['id']} FORCING PASSAGE")
                         self.process_vehicle(vehicle)
@@ -61,6 +62,7 @@ class Coordinator:
                     continue
             if not processed_vehicle:
                 time.sleep(0.5)
+
 
     def run(self) -> None:
         logger.info("Coordinator starting.")
@@ -114,3 +116,23 @@ class DisplayServer:
                 except socket.timeout:
                     continue
             logger.info("Display server shutting down.")
+
+
+if __name__ == "__main__":
+    manager = Manager()
+    queues = {d: manager.Queue() for d in ["N", "S", "E", "W"]}
+    shutdown_flag = Event()
+    shared_memory = SharedMemory(manager)
+
+    coordinator = Coordinator(queues, shared_memory, shutdown_flag)
+    display_server = DisplayServer(queues, shared_memory, shutdown_flag)
+
+    # Start the display server in a separate thread
+    threading.Thread(target=display_server.run, daemon=True).start()
+
+    # Start the coordinator in the main thread
+    try:
+        coordinator.run()
+    except Exception as e:
+        logger.error(f"Coordinator crashed: {e}")
+        

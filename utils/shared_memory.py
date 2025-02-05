@@ -51,7 +51,8 @@ class SharedMemory:
     
     def get_state(self, key: str) -> Any:
         with self.lock:
-            return self.state.get(key)
+            return self.state.get(key, None)  # Explicit default value, prevent potential race condition
+
     
     def append_event_log(self, event: str) -> None:
         with self.lock:
