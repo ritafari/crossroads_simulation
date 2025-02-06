@@ -6,6 +6,7 @@ from typing import Any, Dict
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("shared_memory")
 
+
 class SharedMemory:
     def __init__(self, manager: SyncManager):
         self.manager = manager
@@ -24,7 +25,7 @@ class SharedMemory:
                 raise ValueError("Invalid direction")
             self.state["lights"][direction] = color
             logger.info(f"Light {direction} set to {color}")
-    
+
     def set_priority_mode(self, direction: str) -> None:
         with self.lock:
             self.state["priority_mode"] = True

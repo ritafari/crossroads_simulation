@@ -9,7 +9,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("signals")
 
 class SignalHandler:
-    def __init__(self, lights_pid: int, manager: Manager):  #Uses a shared Manager() instance (no isolated managers).
+    def __init__(self, lights_pid: int, manager: Manager): 
         """
         Initializes the SignalHandler with a given lights process ID and a shared memory manager.
         :param lights_pid: Process ID of the traffic lights controller.
@@ -41,7 +41,7 @@ class SignalHandler:
         
         except (KeyError, ValueError, OSError) as e:
             logger.error(f"Signal error: {e}")
-            
+
     def handle_priority_signal(self, signum, frame):
         # Update the flag and log a message without causing the default output.
         self.signal_received.value = True

@@ -10,6 +10,10 @@ from utils.shared_memory import SharedMemory
 logging.basicConfig(level=logging.INFO, format="%(name)s - %(message)s")
 logger = logging.getLogger("coordinator")
 
+logger = logging.getLogger("coordinator")
+logger.setLevel(logging.DEBUG)
+
+
 class Coordinator:
     def __init__(self, queues, shared_memory: SharedMemory, shutdown_flag):
         self.queues = queues  # Dict: direction -> Queue
@@ -133,19 +137,24 @@ class DisplayServer:
         self.running = True
 
     def generate_status(self) -> dict:
-        return {
-            "lights": self.shared_memory.get_light_state(),
-            "queues": {d: self.queues[d].qsize() for d in ["N", "S", "E", "W"]},
-            "current_vehicle": self.shared_memory.get_state("current_vehicle"),
-            "event_logs": list(self.shared_memory.get_state("event_logs"))
-        }
+
+        with self.shared_memory.lock:
+            status = {
+                "lights": dict(self.shared_memory.state["lights"]),
+                "queues": {d: self.queues[d].qsize() for d in ["N", "S", "E", "W"]},
+                "current_vehicle": self.shared_memory.state["current_vehicle"],
+                "event_logs": list(self.shared_memory.state["event_logs"]),
+                "vehicles": list(self.shared_memory.state.get("vehicles", []))
+            }
+        return status
 
     def handle_client(self, conn: socket.socket) -> None:
         try:
             while self.running and not self.shutdown_flag.is_set():
                 status = self.generate_status()
+                json_msg = json.dumps(status) + "\n"
                 try:
-                    conn.sendall((json.dumps(status) + "\n").encode())
+                    conn.sendall(json_msg.encode())
                     time.sleep(0.2)
                 except (BrokenPipeError, ConnectionResetError):
                     break
