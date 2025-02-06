@@ -1,89 +1,82 @@
+#!/usr/bin/env python3
 import time
-from multiprocessing import Process
+import os
+import signal
+import logging
+from multiprocessing import Manager, Process
+from multiprocessing.managers import SyncManager
 from utils.shared_memory import SharedMemory
-from utils.signals import SignalHandler
-from traffic.lights import Lights
+from lights import TrafficLights
 
-# Mock shared memory for testing
-class MockSharedMemory(SharedMemory):
-    def __init__(self):
-        super().__init__()
-        self.state = {"S": "RED", "N": "RED", "W": "RED", "E": "RED"}  # Initial state
+logging.basicConfig(level=logging.INFO, format="%(name)s - %(process)d - %(message)s")
+logger = logging.getLogger("test_lights")
 
-    def update_state(self, key, value):
-        """Print updates to simulate shared memory state changes."""
-        super().update_state(key, value)
-        print(f"Shared memory updated: {key} = {value}")
+def poll_shared_memory(shared_mem: SharedMemory, duration: int = 20):
+    """
+    Polls the shared memory for a given duration and logs the current traffic lights state.
+    """
+    start_time = time.time()
+    while time.time() - start_time < duration:
+        lights = shared_mem.get_light_state()
+        logger.info(f"Polled lights state: {lights}")
+        time.sleep(3)  # Poll every 3 seconds
 
-
-# Mock signal handler for testing
-class MockSignalHandler(SignalHandler):
-    def __init__(self):
-        super().__init__()
-
-"""
-# Simulate vehicles and priority signals
-def simulate_priority_and_normal_cycle(signal_handler):
-    time.sleep(5)
-    print("\n[Simulation] Priority vehicle detected on 'N' direction.")
-    signal_handler.notify_priority({"source": "N"})
-
-    time.sleep(15)
-    print("\n[Simulation] Clearing priority signal. Resuming normal cycling.")
-    signal_handler.reset_priority_signal()
-
-# Test function
-def test_priority_and_normal_cycle():
-    # Initialize mock shared memory and signal handler
-    shared_memory = MockSharedMemory()
-    signal_handler = MockSignalHandler()
-
-    # Initialize Lights instance
-    lights = Lights(shared_memory, signal_handler)
-
-    # Start testing
-    print("=== Testing Priority and Normal Cycling ===")
-    print("Initial light state:", shared_memory.state)
-
-    # Simulate priority signal and normal cycle in a separate thread
-    import threading
-    threading.Thread(target=simulate_priority_and_normal_cycle, args=(signal_handler,)).start()
-
-    # Run the lights logic
+def simulate_emergency():
+    """
+    Reads the lights.pid file and sends a SIGUSR1 signal to simulate an emergency.
+    """
     try:
-        lights.run()
-    except KeyboardInterrupt:
-        print("\nTest stopped by user.")
-"""
+        with open("lights.pid", "r") as f:
+            pid = int(f.read().strip())
+        os.kill(pid, signal.SIGUSR1)
+        logger.info("Simulated emergency signal (SIGUSR1) sent to TrafficLights process.")
+    except Exception as e:
+        logger.error(f"Failed to simulate emergency: {e}")
 
-def simulate_priority_signals(signal_handler):
-    """Simulate multiple priority signals."""
-    vehicles = [{"source": "N"}, {"source": "E"}, {"source": "W"}, {"source": "S"}]
-    for vehicle in vehicles:
-        signal_handler.notify_priority(vehicle)
-        print(f"Priority signal added for: {vehicle['source']}")
-        time.sleep(1)  # Simulate a delay between signals
-
-def run_lights(shared_memory, signal_handler):
-    """Run the lights system."""
-    lights = Lights(shared_memory, signal_handler)
-    lights.run()
+def test_lights():
+    # Create a single Manager instance.
+    manager: SyncManager = Manager()
+    # Create the shutdown flag using the Manager.
+    shutdown_flag = manager.Event()
+    
+    # Create shared memory.
+    shared_mem = SharedMemory(manager)
+    
+    # Instantiate the TrafficLights process.
+    lights_instance = TrafficLights(shared_mem, shutdown_flag)
+    lights_process = Process(target=lights_instance.run, name="TrafficLights")
+    
+    # Start the lights process.
+    lights_process.start()
+    logger.info("TrafficLights process started.")
+    
+    # Poll the shared memory for normal operation.
+    logger.info("Polling shared memory during normal operation...")
+    poll_shared_memory(shared_mem, duration=15)
+    
+    # Simulate an emergency after 15 seconds.
+    simulate_emergency()
+    
+    # Poll the shared memory for additional 15 seconds to observe emergency mode.
+    logger.info("Polling shared memory during emergency mode...")
+    poll_shared_memory(shared_mem, duration=15)
+    
+    # Signal shutdown and wait for the lights process to exit.
+    shutdown_flag.set()
+    lights_process.join(timeout=5)
+    if lights_process.is_alive():
+        logger.error("TrafficLights process did not shut down gracefully; terminating.")
+        lights_process.terminate()
+    
+    # Final poll to see the lights state after shutdown.
+    final_state = shared_mem.get_light_state()
+    logger.info(f"Final lights state after shutdown: {final_state}")
+    
+    manager.shutdown()
+    logger.info("Test for TrafficLights completed.")
 
 if __name__ == "__main__":
-    # Create shared memory and signal handler
-    signal_handler = SignalHandler()
-    shared_memory = MockSharedMemory()  # Replace with your shared memory implementation
-
-    # Start the lights system in a separate process
-    lights_process = Process(target=run_lights, args=(shared_memory, signal_handler))
-    lights_process.start()
-
-    # Simulate priority signals in another process
-    priority_process = Process(target=simulate_priority_signals, args=(signal_handler,))
-    priority_process.start()
-
-    # Wait for the priority process to finish
-    priority_process.join()
-
-    # Terminate the lights process
-    lights_process.terminate()
+    try:
+        test_lights()
+    except KeyboardInterrupt:
+        logger.info("KeyboardInterrupt received, exiting test.")

@@ -18,6 +18,7 @@ class SignalHandler:
         self.lights_pid = lights_pid
         self.priority_direction = manager.Value(c_char_p, b' ')  # Stores direction as a string
         self.signal_received = manager.Value(c_bool, False)  # Flag for priority signal
+        signal.signal(signal.SIGUSR1, self.handle_priority_signal)
 
     def notify_priority(self, vehicle: dict) -> None:
         """
@@ -30,7 +31,6 @@ class SignalHandler:
                 raise ValueError("Invalid source direction")
             
             self.priority_direction.value = source.encode('utf-8')
-            self.signal_received.value = True
 
             # Ensure the process exists before sending a signal
             if not os.path.exists(f"/proc/{self.lights_pid}"):  # Works on Linux
@@ -41,6 +41,11 @@ class SignalHandler:
         
         except (KeyError, ValueError, OSError) as e:
             logger.error(f"Signal error: {e}")
+            
+    def handle_priority_signal(self, signum, frame):
+        # Update the flag and log a message without causing the default output.
+        self.signal_received.value = True
+        logger.debug("Received SIGUSR1: Emergency signal processed.")
 
     def get_priority_direction(self) -> str:
         """

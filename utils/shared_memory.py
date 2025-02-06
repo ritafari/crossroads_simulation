@@ -11,7 +11,7 @@ class SharedMemory:
         self.manager = manager
         self.lock = manager.Lock()
         self.state = self.manager.dict({
-            "lights": {"N": "GREEN", "S": "GREEN", "E": "RED", "W": "RED"},
+            "lights": self.manager.dict({"N": "GREEN", "S": "GREEN", "E": "RED", "W": "RED"}),
             "priority_mode": False,
             "priority_direction": None,
             "current_vehicle": None,
@@ -57,10 +57,37 @@ class SharedMemory:
     def append_event_log(self, event: str) -> None:
         with self.lock:
             current_time = time.time()
+            # Get a local copy of the current event logs.
             logs = list(self.state["event_logs"])
             logs.append({"time": current_time, "msg": event})
-            # Keep only the last 5 events.
-            logs = logs[-5:]
-            self.state["event_logs"].clear()
+            # Keep only the last 20 events.
+            logs = logs[-20:]
+            # Remove all elements from the Manager list one by one.
+            while len(self.state["event_logs"]) > 0:
+                self.state["event_logs"].pop(0)
+            # Append the trimmed logs back into the Manager list.
             for log in logs:
                 self.state["event_logs"].append(log)
+    
+    def cleanup(self):
+        """
+        Resets the shared memory state to its default values.
+        This method clears temporary data and resets all keys.
+        """
+        with self.lock:
+            try:
+                # Reset traffic lights to a default state.
+                if "lights" in self.state:
+                    for direction in ["N", "S", "E", "W"]:
+                        self.state["lights"][direction] = "RED"  # or default values, as needed
+                # Clear current vehicle and priority mode.
+                self.state["current_vehicle"] = None
+                self.state["priority_mode"] = False
+                self.state["priority_direction"] = None
+                # Clear event logs.
+                while len(self.state["event_logs"]) > 0:
+                    self.state["event_logs"].pop(0)
+                logger.info("Shared memory cleanup completed.")
+            except Exception as e:
+                logger.error(f"Error during shared memory cleanup: {e}")
+

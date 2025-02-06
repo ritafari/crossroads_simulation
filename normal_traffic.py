@@ -2,7 +2,7 @@ import time
 import random
 import uuid
 import logging
-from multiprocessing import Process, Manager, Event
+from multiprocessing import Process
 from multiprocessing.managers import SyncManager
 from utils.message_queues import enqueue, create_queues
 
@@ -20,7 +20,6 @@ DIRECTION_MAP = {
     ("W", "N"): "right",
     ("W", "S"): "left"
 }
-
 
 def create_vehicle() -> dict:
     source = random.choice(DIRECTIONS)
@@ -40,31 +39,37 @@ def create_vehicle() -> dict:
         "turn": turn
     }
 
-
 def normal_traffic_gen(queues, interval: float, shutdown_flag, max_vehicles: int = None) -> None:
-    logger.info("🚗 normal_traffic_gen started.") #check if function starts
+    logger.info("🚗 normal_traffic_gen started.")
     count = 0
     while not shutdown_flag.is_set():
         if max_vehicles and count >= max_vehicles:
             logger.info("Reached maximum vehicle count")
             break
-        vehicle = {"id": f"V{int(time.time() * 1000)}", "source": "N", "destination": "S", "priority": False}
-        queues["N"].put(vehicle)
-        logger.info(f"Normal vehicle added: {vehicle}")  # Logging the vehicle addition
+
+        # Use the create_vehicle() function to generate a vehicle.
+        vehicle = create_vehicle()
+        # Enqueue the vehicle based on its source.
+        enqueue(queues, vehicle, vehicle["source"])
         logger.info(f"Generated normal vehicle {vehicle['id'][:8]} from {vehicle['source']} to {vehicle['destination']} (turn: {vehicle['turn']})")
+        
         count += 1
-        time.sleep(interval)
-        # Sleep in smaller increments to check the shutdown flag more frequently
-        for _ in range(int(interval * 10)):
+        # Sleep for the main interval.
+        sleep_time = interval
+        # Instead of a single sleep, we check shutdown_flag in small increments.
+        increments = int(sleep_time * 10)
+        for _ in range(increments):
             if shutdown_flag.is_set():
                 break
-            time.sleep(0.1)
-
+            time.sleep(sleep_time / increments)
 
 if __name__ == "__main__":
+    from multiprocessing import Manager
     manager: SyncManager = Manager()
-    shutdown_flag = Event()
+    # Use manager.Event() for consistency.
+    shutdown_flag = manager.Event()
     queues = create_queues(manager)
+    
     process = Process(target=normal_traffic_gen, args=(queues, 2, shutdown_flag))
     try:
         process.start()
@@ -73,10 +78,10 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logger.info("Shutting down traffic generator...")
         shutdown_flag.set()
-        process.join(timeout=5)  # Wait for the process to finish gracefully
+        process.join(timeout=5)  # Wait for graceful shutdown.
         if process.is_alive():
             process.terminate()
     finally:
         if process.is_alive():
             process.terminate()
-        manager.shutdown()  #The manager object should be shut down properly to release resources.
+        manager.shutdown()  # Shut down the manager to release resources.
