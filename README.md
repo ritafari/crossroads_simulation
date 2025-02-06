@@ -74,6 +74,13 @@ Visualizes the intersection state using data received from the `coordinator` via
    python main.py
    ```
 
+**Note:**  
+Unfortunately, after hours of trying to find the issue(s) and debug, the full simulation is still not working properly. However, you can test the individual components separately using the provided test files. For example:
+- Run `test_normal_traffic.py` to verify the normal traffic generator.
+- Run `test_priority_traffic.py` to test the priority traffic generator.
+- Run `test_display.py` to test the display component independently.
+
+
 ## Useful Git Commands During Development
 
 - **Check the Status of Your Repository**

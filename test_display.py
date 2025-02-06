@@ -4,31 +4,39 @@ import sys
 import time
 import random
 
+# This version of the GUI does not follow any of the rules (lights, turns, ...)
+# It's only for testing what the GUI looks like and the animations
+
 # Initialize Pygame
 pygame.init()
 
 # Screen dimensions
-WIDTH, HEIGHT = 900, 700
+WIDTH, HEIGHT = 800, 600
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Crossroads Simulation Dashboard")
+pygame.display.set_caption("Crossroads Simulation Display")
 
 clock = pygame.time.Clock()
 
 # Define Colors
-BLACK      = (0, 0, 0)
-WHITE      = (255, 255, 255)
-RED        = (220, 20, 60)
-GREEN      = (50, 205, 50)
-YELLOW     = (255, 215, 0)
-GRAY       = (169, 169, 169)
-DARK_GRAY  = (40, 40, 40)
+BLACK     = (0, 0, 0)
+WHITE     = (255, 255, 255)
+RED       = (220, 20, 60)
+GREEN     = (50, 205, 50)
+YELLOW    = (255, 215, 0)
+GRAY      = (169, 169, 169)
+DARK_GRAY = (40, 40, 40)
 
 # Road and intersection parameters
 ROAD_WIDTH = 120
 CENTER_X = WIDTH // 2
 CENTER_Y = HEIGHT // 2
 
-# Simulation state (dummy state for display demo)
+# Simulation parameters for lights:
+# We'll cycle the NS and EW lights every 10 seconds.
+light_cycle_duration = 10  # seconds
+light_timer = 0
+
+# Define simulation state
 state = {
     "lights": {  # initial state: NS GREEN, EW RED
         "N": "GREEN",
@@ -36,24 +44,22 @@ state = {
         "E": "RED",
         "W": "RED"
     },
-    "vehicles": []  # list of vehicles
+    "vehicles": []  # list of vehicle dictionaries
 }
 
-# We'll cycle the lights every 10 seconds.
-light_cycle_duration = 10
-light_timer = 0
+# Vehicle structure:
+# { "id": str, "type": "normal" or "emergency", "source": "N"/"S"/"E"/"W",
+#   "destination": (opposite or turning), "pos": [x, y], "speed": int, "priority": bool }
 
-# Vehicle counter for unique IDs.
 vehicle_id_counter = 1
 
-def create_vehicle(source, destination, turn="straight", priority=False):
+def create_vehicle(source, destination, priority=False):
     global vehicle_id_counter
     vid = f"veh{vehicle_id_counter:03d}"
     vehicle_id_counter += 1
-
-    # Set initial position based on source.
+    # Set initial position based on source
     if source == "N":
-        pos = [CENTER_X - 20, -40]
+        pos = [CENTER_X - 20, -40]  # above the screen on vertical center lane
         speed = random.randint(2, 4)
     elif source == "S":
         pos = [CENTER_X + 20, HEIGHT + 40]
@@ -65,7 +71,7 @@ def create_vehicle(source, destination, turn="straight", priority=False):
         pos = [-40, CENTER_Y + 20]
         speed = random.randint(2, 4)
     else:
-        pos = [0, 0]
+        pos = [0,0]
         speed = 0
 
     return {
@@ -75,94 +81,88 @@ def create_vehicle(source, destination, turn="straight", priority=False):
         "destination": destination,
         "pos": pos,
         "speed": speed,
-        "turn": turn,
         "priority": priority
     }
 
 def update_vehicles():
-    """Update the positions of vehicles based on their source direction.
-    
-    Vehicles will only move if their corresponding light is GREEN.
-    For N and S, check state["lights"]["N"] (assumed shared); for E and W, check state["lights"]["E"].
-    """
-    new_vehicle_list = []
+    """Update the positions of vehicles based on their source direction."""
     for veh in state["vehicles"]:
         src = veh["source"]
-        # Check light state:
         if src in ("N", "S"):
-            if state["lights"]["N"] != "GREEN":
-                new_vehicle_list.append(veh)
-                continue  # vehicle stops if the NS light is RED.
+            # Vehicles move vertically along center_x; update y
             veh["pos"][1] += veh["speed"]
         elif src in ("E", "W"):
-            if state["lights"]["E"] != "GREEN":
-                new_vehicle_list.append(veh)
-                continue  # vehicle stops if the EW light is RED.
             veh["pos"][0] += veh["speed"]
-        new_vehicle_list.append(veh)
-    state["vehicles"] = [veh for veh in new_vehicle_list
+    # Remove vehicles that have moved off-screen (simple check)
+    state["vehicles"] = [veh for veh in state["vehicles"]
                          if -100 < veh["pos"][0] < WIDTH+100 and -100 < veh["pos"][1] < HEIGHT+100]
 
 def draw_intersection():
-    """Draw roads, intersection, lights, and cardinal directions."""
+    # Fill background
     screen.fill(DARK_GRAY)
     
-    # Draw roads.
+    # Draw roads as rectangles
+    # Horizontal road (E-W)
     pygame.draw.rect(screen, GRAY, (0, CENTER_Y - ROAD_WIDTH // 2, WIDTH, ROAD_WIDTH))
+    # Vertical road (N-S)
     pygame.draw.rect(screen, GRAY, (CENTER_X - ROAD_WIDTH // 2, 0, ROAD_WIDTH, HEIGHT))
     
-    # Draw intersection lines.
+    # Draw intersection lines (optional)
     pygame.draw.line(screen, WHITE, (0, CENTER_Y - ROAD_WIDTH // 2), (WIDTH, CENTER_Y - ROAD_WIDTH // 2), 2)
     pygame.draw.line(screen, WHITE, (0, CENTER_Y + ROAD_WIDTH // 2), (WIDTH, CENTER_Y + ROAD_WIDTH // 2), 2)
     pygame.draw.line(screen, WHITE, (CENTER_X - ROAD_WIDTH // 2, 0), (CENTER_X - ROAD_WIDTH // 2, HEIGHT), 2)
     pygame.draw.line(screen, WHITE, (CENTER_X + ROAD_WIDTH // 2, 0), (CENTER_X + ROAD_WIDTH // 2, HEIGHT), 2)
     
-    # Draw cardinal direction labels.
-    font = pygame.font.SysFont("Arial", 28)
-    screen.blit(font.render("N", True, WHITE), (CENTER_X - 10, 10))
-    screen.blit(font.render("S", True, WHITE), (CENTER_X - 10, HEIGHT - 40))
-    screen.blit(font.render("E", True, WHITE), (WIDTH - 40, CENTER_Y - 10))
-    screen.blit(font.render("W", True, WHITE), (10, CENTER_Y - 10))
+    # Draw cardinal directions
+    font = pygame.font.SysFont("Arial", 24)
+    stdscr = screen
+    stdscr.blit(font.render("N", True, WHITE), (CENTER_X - 10, 10))
+    stdscr.blit(font.render("S", True, WHITE), (CENTER_X - 10, HEIGHT - 30))
+    stdscr.blit(font.render("E", True, WHITE), (WIDTH - 30, CENTER_Y - 10))
+    stdscr.blit(font.render("W", True, WHITE), (10, CENTER_Y - 10))
     
     # Draw traffic lights.
-    # Use state["lights"]["N"] for NS.
+    # For N/S, use state["lights"]["N"]
     ns_light = state["lights"]["N"]
     ns_color = GREEN if ns_light == "GREEN" else RED
+    # Draw a circle for N light above intersection.
     pygame.draw.circle(screen, ns_color, (CENTER_X - ROAD_WIDTH, CENTER_Y - ROAD_WIDTH), 15)
+    # And S light below intersection.
     pygame.draw.circle(screen, ns_color, (CENTER_X + ROAD_WIDTH, CENTER_Y + ROAD_WIDTH), 15)
     
-    # Use state["lights"]["E"] for EW.
+    # For E/W, use state["lights"]["E"]
     ew_light = state["lights"]["E"]
     ew_color = GREEN if ew_light == "GREEN" else RED
+    # Draw E light: circle on right of intersection.
     pygame.draw.circle(screen, ew_color, (CENTER_X + ROAD_WIDTH, CENTER_Y - ROAD_WIDTH), 15)
+    # Draw W light: circle on left of intersection.
     pygame.draw.circle(screen, ew_color, (CENTER_X - ROAD_WIDTH, CENTER_Y + ROAD_WIDTH), 15)
-    
-    # Optionally, draw a border around the intersection.
-    pygame.draw.rect(screen, WHITE, (CENTER_X - ROAD_WIDTH // 2, CENTER_Y - ROAD_WIDTH // 2, ROAD_WIDTH, ROAD_WIDTH), 2)
 
 def draw_vehicles():
-    """Draw each vehicle as a rectangle with an ID label."""
+    """Draw each vehicle as a rectangle."""
     for veh in state["vehicles"]:
-        # Distinguish emergency vehicles by color.
+        # Differentiate by priority: emergency vehicles drawn in RED, normal in WHITE.
         color = RED if veh["priority"] else WHITE
+        # Draw the vehicle as a rectangle.
         if veh["source"] in ("N", "S"):
+            # For vertical vehicles, width=20, height=40.
             rect = pygame.Rect(veh["pos"][0], veh["pos"][1], 20, 40)
         else:
+            # For horizontal vehicles, width=40, height=20.
             rect = pygame.Rect(veh["pos"][0], veh["pos"][1], 40, 20)
         pygame.draw.rect(screen, color, rect)
-        # Draw the vehicle ID (first 4 characters) on the vehicle.
+        # Optionally, draw the vehicle ID (first 4 chars)
         font = pygame.font.SysFont("Arial", 12)
         text_surface = font.render(veh["id"][:4], True, BLACK)
         screen.blit(text_surface, (veh["pos"][0], veh["pos"][1]))
 
 def update_lights():
-    """Cycle the traffic lights based on time.
-    
-    For this demonstration, NS and EW lights swap every light_cycle_duration seconds.
-    """
+    """Cycle the lights based on time."""
     global light_timer
     current_time = time.time()
+    # Cycle every 'light_cycle_duration' seconds.
     if current_time - light_timer > light_cycle_duration:
+        # Toggle: if NS are GREEN, switch to RED and EW to GREEN; otherwise, vice versa.
         if state["lights"]["N"] == "GREEN":
             state["lights"]["N"] = "RED"
             state["lights"]["S"] = "RED"
@@ -175,44 +175,53 @@ def update_lights():
             state["lights"]["W"] = "RED"
         light_timer = current_time
 
-def update_simulation():
-    """Update the simulation state: traffic lights and vehicles."""
-    update_lights()
-    update_vehicles()
-
-def draw_info():
-    """Draw simulation information in the top-left corner."""
-    font = pygame.font.SysFont("Arial", 18)
-    info_text = f"Lights: N={state['lights']['N']}  S={state['lights']['S']}  E={state['lights']['E']}  W={state['lights']['W']}"
-    screen.blit(font.render(info_text, True, WHITE), (10, 10))
-    
-    # You could also display queue lengths or other state details here.
-    
 def main():
     global light_timer
     light_timer = time.time()
-    # Spawn some vehicles for demonstration.
-    state["vehicles"].append(create_vehicle("N", "E", turn="straight"))
-    state["vehicles"].append(create_vehicle("S", "W", turn="left"))
-    state["vehicles"].append(create_vehicle("E", "W", turn="right", priority=True))
-    state["vehicles"].append(create_vehicle("W", "S", turn="left"))
+    # For testing, create some vehicles periodically.
+    # Every 3 seconds, spawn a random vehicle.
+    spawn_timer = time.time()
     
+    # Main loop.
     running = True
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+            # Quit if Q is pressed.
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_q:
                 running = False
-        
-        update_simulation()
+
+        # Update lights based on time.
+        update_lights()
+
+        # Spawn a new vehicle every 3 seconds.
+        if time.time() - spawn_timer > 3:
+            # Randomly choose a source.
+            src = random.choice(["N", "S", "E", "W"])
+            # For destination, simply pick a different random cardinal.
+            dest = random.choice([d for d in ["N", "S", "E", "W"] if d != src])
+            # Randomly decide if it is emergency (say, 20% chance).
+            priority = random.random() < 0.2
+            veh = create_vehicle(src, dest, priority)
+            state["vehicles"].append(veh)
+            spawn_timer = time.time()
+
+        # Update vehicles positions.
+        update_vehicles()
+
+        # Draw the simulation.
         draw_intersection()
         draw_vehicles()
-        draw_info()
-        
+
+        # Draw simulation info (optional)
+        font = pygame.font.SysFont("Arial", 18)
+        info = f"Lights: N={state['lights']['N']} S={state['lights']['S']} E={state['lights']['E']} W={state['lights']['W']}"
+        screen.blit(font.render(info, True, WHITE), (10, 10))
+
         pygame.display.flip()
         clock.tick(60)
-    
+
     pygame.quit()
     sys.exit()
 
